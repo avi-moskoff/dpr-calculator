@@ -1,4 +1,5 @@
 import numpy as np
+import functools
 
 teams = [498, 1011, 2375, 2403, 2662, 4183, 5059, 6352, 6413, 8848, 9985]
 
@@ -124,7 +125,7 @@ matches = [
 ]
 
 # 'dpr' or 'opr'
-dpr_or_opr = "dpr"
+dpr_or_opr = "opr"
 
 if __name__ == "__main__":
     red_matches = list(
@@ -164,5 +165,45 @@ if __name__ == "__main__":
 
     power_rating = np.linalg.solve(A, B)
 
-    for i in range(len(teams)):
-        print(teams[i], power_rating[i])
+    # Now, we want to know the average deviation from the opponent's expected score when a given team is playing.
+
+    power_rating_map = {teams[i]: power_rating[i].item(0) for i in range(len(teams))}
+    print(power_rating_map)
+
+    total_matches_played = {
+        team: functools.reduce(
+            lambda acc, match: acc
+            + (1 if team in match["red"] or team in match["blue"] else 0),
+            matches,
+            0,
+        )
+        for team in teams
+    }
+
+    def get_deviation(acc, match, team):
+        opposing_alliance = "red" if team in match["blue"] else "blue"
+
+        expected_opposing_score = functools.reduce(
+            lambda score_acc, opposing_team: score_acc
+            + power_rating_map[opposing_team],
+            match[opposing_alliance],
+            0,
+        )
+
+        # Will be positive if the team blocked points in this match
+        return acc + expected_opposing_score - match[f"{opposing_alliance}_score"]
+
+    total_points_prevented = {
+        team: functools.reduce(
+            lambda acc, match: get_deviation(acc, match, team), matches, 0
+        )
+        for team in teams
+    }
+
+    average_points_blocked = {
+        team: total_points_prevented[team] / total_matches_played[team]
+        for team in teams
+    }
+
+    for team in teams:
+        print(team, average_points_blocked[team])
